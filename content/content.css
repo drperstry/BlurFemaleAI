@@ -1,0 +1,17 @@
+/* BlurFemaleAI — Content Script Styles */
+
+.blur-female-ai-wrapper {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.blur-female-ai-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}

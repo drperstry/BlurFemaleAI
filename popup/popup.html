@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BlurFemaleAI</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="header">
+      <h1 class="title">BlurFemaleAI</h1>
+      <p class="subtitle">AI-Powered Face Blur</p>
+    </header>
+
+    <section class="section">
+      <div class="toggle-row">
+        <span class="label">Extension Enabled</span>
+        <label class="switch">
+          <input type="checkbox" id="enableToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Detection Engine</h2>
+      <div class="engine-selector">
+        <button class="engine-btn active" data-engine="hybrid">Hybrid</button>
+        <button class="engine-btn" data-engine="faceapi">Face API</button>
+        <button class="engine-btn" data-engine="tensorflow">TensorFlow</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Media Processing</h2>
+      <div class="toggle-row">
+        <span class="label">Blur Images</span>
+        <label class="switch">
+          <input type="checkbox" id="processImages" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="label">Blur Videos</span>
+        <label class="switch">
+          <input type="checkbox" id="processVideos" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Blur Intensity</h2>
+      <div class="slider-row">
+        <input type="range" id="blurIntensity" min="5" max="60" value="25" class="range-slider">
+        <span id="blurValue" class="slider-value">25px</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Confidence Threshold</h2>
+      <div class="slider-row">
+        <input type="range" id="confidenceThreshold" min="30" max="95" value="60" class="range-slider">
+        <span id="confidenceValue" class="slider-value">60%</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Current Site</h2>
+      <div class="site-row">
+        <span id="currentDomain" class="domain-label">—</span>
+        <button id="toggleDomain" class="btn btn-small">Exclude</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Excluded Domains</h2>
+      <div id="domainList" class="domain-list">
+        <p class="empty-state">No excluded domains</p>
+      </div>
+    </section>
+
+    <section class="section stats-section">
+      <div class="stat">
+        <span class="stat-value" id="statProcessed">0</span>
+        <span class="stat-label">Processed</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="statDetected">0</span>
+        <span class="stat-label">Faces Blurred</span>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <button id="rescanBtn" class="btn btn-primary">Rescan Page</button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
