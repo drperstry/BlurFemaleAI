@@ -1,0 +1,6 @@
+build/
+safari-xcode/
+*.zip
+*.xpi
+.DS_Store
+node_modules/

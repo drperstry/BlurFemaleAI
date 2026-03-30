@@ -1,18 +1,24 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "BlurFemaleAI",
   "version": "1.0.0",
   "description": "Detects and blurs female faces in images and videos using AI-powered face detection.",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
-  ],
-  "host_permissions": [
     "<all_urls>"
   ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "blurfemaleai@extension",
+      "strict_min_version": "109.0"
+    },
+    "gecko_android": {
+      "strict_min_version": "120.0"
+    }
+  },
   "background": {
-    "service_worker": "background/service-worker.js"
+    "scripts": ["lib/browser-polyfill.js", "background/service-worker.js"]
   },
   "content_scripts": [
     {
@@ -27,7 +33,7 @@
       "run_at": "document_idle"
     }
   ],
-  "action": {
+  "browser_action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -41,17 +47,10 @@
     "128": "icons/icon128.png"
   },
   "web_accessible_resources": [
-    {
-      "resources": [
-        "lib/*",
-        "models/*",
-        "content/model-engine.js",
-        "content/processor.js"
-      ],
-      "matches": ["<all_urls>"]
-    }
+    "lib/*",
+    "models/*",
+    "content/model-engine.js",
+    "content/processor.js"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  }
+  "content_security_policy": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
 }

@@ -1,9 +1,14 @@
 /**
  * Popup Script
  * Manages the extension popup UI, settings synchronization, and domain exclusion controls.
+ * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Cross-browser API reference
+  const api = (typeof browserAPI !== 'undefined') ? browserAPI : null;
+  const rawApi = (typeof browser !== 'undefined') ? browser : chrome;
+
   const elements = {
     enableToggle: document.getElementById('enableToggle'),
     processImages: document.getElementById('processImages'),
@@ -30,7 +35,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   applySettingsToUI(settings);
 
   // Get current tab domain
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabs = await queryTabs({ active: true, currentWindow: true });
+  const tab = tabs?.[0];
   if (tab?.url) {
     try {
       currentDomain = new URL(tab.url).hostname;
@@ -92,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   elements.rescanBtn.addEventListener('click', async () => {
     if (tab?.id) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'FORCE_RESCAN' });
+      await sendTabMessage(tab.id, { type: 'FORCE_RESCAN' });
       setTimeout(() => loadStats(tab.id), 1000);
     }
   });
@@ -154,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function loadStats(tabId) {
     if (!tabId) return;
     try {
-      const stats = await chrome.tabs.sendMessage(tabId, { type: 'GET_CONTENT_STATS' });
+      const stats = await sendTabMessage(tabId, { type: 'GET_CONTENT_STATS' });
       elements.statProcessed.textContent = stats?.processed || 0;
       elements.statDetected.textContent = stats?.detected || 0;
     } catch {
@@ -163,9 +169,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  /**
+   * Cross-browser runtime.sendMessage
+   */
   function sendMessage(msg) {
+    if (api) return api.runtime.sendMessage(msg);
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(msg, resolve);
+      rawApi.runtime.sendMessage(msg, (response) => {
+        resolve(response);
+      });
+    });
+  }
+
+  /**
+   * Cross-browser tabs.query
+   */
+  function queryTabs(query) {
+    if (api) return api.tabs.query(query);
+    return new Promise((resolve) => {
+      rawApi.tabs.query(query, resolve);
+    });
+  }
+
+  /**
+   * Cross-browser tabs.sendMessage
+   */
+  function sendTabMessage(tabId, msg) {
+    if (api) return api.tabs.sendMessage(tabId, msg);
+    return new Promise((resolve) => {
+      rawApi.tabs.sendMessage(tabId, msg, (response) => {
+        resolve(response);
+      });
     });
   }
 

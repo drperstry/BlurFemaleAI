@@ -2,6 +2,7 @@
  * Model Engine
  * Abstraction layer for face detection engines: Face-API.js, TensorFlow.js, and Hybrid mode.
  * Handles model loading, inference, and gender classification.
+ * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
  */
 
 class ModelEngine {
@@ -12,6 +13,13 @@ class ModelEngine {
     this.confidenceThreshold = 0.6;
     this._loadingFaceApi = null;
     this._loadingTf = null;
+  }
+
+  /** Get a cross-browser extension resource URL */
+  _getExtURL(path) {
+    if (typeof browserAPI !== 'undefined') return browserAPI.runtime.getURL(path);
+    const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+    return rt.getURL(path);
   }
 
   setEngine(engine) {
@@ -44,11 +52,11 @@ class ModelEngine {
 
     this._loadingFaceApi = (async () => {
       try {
-        await this._injectScript(chrome.runtime.getURL('lib/face-api.min.js'));
+        await this._injectScript(this._getExtURL('lib/face-api.min.js'));
         if (typeof faceapi === 'undefined') {
           throw new Error('face-api.js failed to load');
         }
-        const modelPath = chrome.runtime.getURL('models/');
+        const modelPath = this._getExtURL('models/');
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
           faceapi.nets.ageGenderNet.loadFromUri(modelPath),
@@ -70,8 +78,20 @@ class ModelEngine {
 
     this._loadingTf = (async () => {
       try {
-        await this._injectScript(chrome.runtime.getURL('lib/tf.min.js'));
-        await this._injectScript(chrome.runtime.getURL('lib/blazeface.min.js'));
+        await this._injectScript(this._getExtURL('lib/tf.min.js'));
+
+        // Safari/iOS: ensure WebGL backend is ready, fall back to CPU if needed
+        if (typeof tf !== 'undefined') {
+          try {
+            await tf.ready();
+          } catch {
+            console.warn('[BlurFemaleAI] WebGL unavailable, falling back to CPU backend');
+            await tf.setBackend('cpu');
+            await tf.ready();
+          }
+        }
+
+        await this._injectScript(this._getExtURL('lib/blazeface.min.js'));
         if (typeof blazeface === 'undefined') {
           throw new Error('BlazeFace failed to load');
         }
@@ -122,8 +142,9 @@ class ModelEngine {
     if (!this.faceApiLoaded) await this._loadFaceApi();
 
     try {
+      const input = this._ensureDetectable(element);
       const detections = await faceapi
-        .detectAllFaces(element, new faceapi.TinyFaceDetectorOptions({
+        .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({
           inputSize: 320,
           scoreThreshold: 0.5,
         }))
@@ -154,7 +175,6 @@ class ModelEngine {
       const canvas = this._elementToCanvas(element);
       const predictions = await this._blazefaceModel.estimateFaces(canvas, false);
 
-      // BlazeFace doesn't classify gender — return all faces with a flag
       return predictions.map(pred => {
         const start = pred.topLeft;
         const end = pred.bottomRight;
@@ -177,8 +197,6 @@ class ModelEngine {
   }
 
   async _detectHybrid(element) {
-    // Use TensorFlow BlazeFace for fast face detection,
-    // then Face-API for gender classification on detected regions.
     const tfResults = await this._detectTensorFlow(element);
     if (tfResults.length === 0) return [];
 
@@ -197,7 +215,6 @@ class ModelEngine {
         .filter(d => d.gender === 'female' && d.genderProbability >= this.confidenceThreshold)
         .map(d => d.detection.box);
 
-      // Match TF detections with face-api gender results
       return tfResults.filter(tfFace => {
         return femaleFaces.some(fBox => this._boxesOverlap(tfFace.box, fBox));
       }).map(face => ({
@@ -206,9 +223,28 @@ class ModelEngine {
         genderUnknown: false,
       }));
     } catch {
-      // Fallback: if gender classification fails, return TF results as-is
       return tfResults;
     }
+  }
+
+  /**
+   * Ensure the element is usable for detection.
+   * Safari sometimes has issues passing video elements directly to face-api;
+   * convert to canvas as a fallback.
+   */
+  _ensureDetectable(element) {
+    if (element instanceof HTMLVideoElement) {
+      return this._elementToCanvas(element);
+    }
+    // Safari may taint canvases from cross-origin images; fall back to canvas copy
+    if (element instanceof HTMLImageElement && element.crossOrigin === null) {
+      try {
+        return this._elementToCanvas(element);
+      } catch {
+        return element;
+      }
+    }
+    return element;
   }
 
   _boxesOverlap(a, b) {

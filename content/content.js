@@ -2,15 +2,20 @@
  * Content Script — Entry Point
  * Orchestrates face detection and blurring on web pages.
  * Uses IntersectionObserver for lazy loading and MutationObserver for dynamic content.
+ * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
  */
 
 (function () {
   'use strict';
 
+  // Cross-browser API reference (polyfill loaded via manifest)
+  const api = (typeof browserAPI !== 'undefined') ? browserAPI :
+    { runtime: (typeof browser !== 'undefined' ? browser : chrome).runtime,
+      raw: (typeof browser !== 'undefined' ? browser : chrome) };
+
   let settings = null;
   let processor = null;
   let modelEngine = null;
-  let observer = null;
   let mutationObserver = null;
   let intersectionObserver = null;
   let isActive = false;
@@ -44,13 +49,17 @@
   }
 
   async function loadModules() {
-    await injectScript('content/model-engine.js');
-    await injectScript('content/processor.js');
+    const getURL = (path) => {
+      if (typeof browserAPI !== 'undefined') return browserAPI.runtime.getURL(path);
+      const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+      return rt.getURL(path);
+    };
+    await injectScript(getURL('content/model-engine.js'));
+    await injectScript(getURL('content/processor.js'));
   }
 
-  function injectScript(path) {
+  function injectScript(url) {
     return new Promise((resolve, reject) => {
-      const url = chrome.runtime.getURL(path);
       if (document.querySelector(`script[src="${url}"]`)) {
         resolve();
         return;
@@ -65,18 +74,28 @@
 
   function getSettings() {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
-        resolve(response?.settings || {
-          enabled: true,
-          detectionEngine: 'hybrid',
-          blurIntensity: 25,
-          excludedDomains: [],
-          processImages: true,
-          processVideos: true,
-          confidenceThreshold: 0.6,
-        });
+      const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+      rt.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+        // Handle Firefox promise-based API
+        if (response && typeof response.then === 'function') {
+          response.then(r => resolve(r?.settings || getDefaultSettings()));
+          return;
+        }
+        resolve(response?.settings || getDefaultSettings());
       });
     });
+  }
+
+  function getDefaultSettings() {
+    return {
+      enabled: true,
+      detectionEngine: 'hybrid',
+      blurIntensity: 25,
+      excludedDomains: [],
+      processImages: true,
+      processVideos: true,
+      confidenceThreshold: 0.6,
+    };
   }
 
   function setupIntersectionObserver() {
@@ -150,7 +169,8 @@
   }
 
   function setupMessageListener() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+    rt.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.type) {
         case 'SETTINGS_UPDATED':
           handleSettingsUpdate(message.settings);
