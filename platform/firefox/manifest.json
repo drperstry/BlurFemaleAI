@@ -25,6 +25,8 @@
       "matches": ["<all_urls>"],
       "js": [
         "lib/browser-polyfill.js",
+        "content/model-engine.js",
+        "content/processor.js",
         "content/content.js"
       ],
       "css": [

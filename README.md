@@ -79,7 +79,7 @@ curl -L -o lib/tf.min.js \
 
 # BlazeFace
 curl -L -o lib/blazeface.min.js \
-  https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.1.0/dist/blazeface.min.js
+  https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js
 ```
 
 ### 2. Download Face-API.js Models

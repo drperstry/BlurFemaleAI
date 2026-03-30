@@ -1,6 +1,6 @@
 /**
  * Background Service Worker
- * Manages extension state, domain exclusions, and messaging between popup and content scripts.
+ * Manages extension state, domain exclusions, messaging, and script injection.
  * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
  */
 
@@ -48,9 +48,40 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'GET_STATS':
       handleGetStats(sender.tab?.id, sendResponse);
       return true;
+
+    case 'INJECT_SCRIPT':
+      handleInjectScript(message.file, sender.tab?.id, sendResponse);
+      return true;
   }
   return false;
 });
+
+/**
+ * Inject a script file into the content script world of a tab.
+ * Uses chrome.scripting (MV3) or browser.tabs.executeScript (MV2/Firefox).
+ */
+async function handleInjectScript(file, tabId, sendResponse) {
+  if (!tabId || !file) {
+    sendResponse({ success: false, error: 'Missing tabId or file' });
+    return;
+  }
+  try {
+    if (chrome.scripting?.executeScript) {
+      // MV3: Chrome, Brave, Safari
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: [file],
+      });
+    } else if (typeof browser !== 'undefined' && browser.tabs?.executeScript) {
+      // MV2: Firefox
+      await browser.tabs.executeScript(tabId, { file });
+    }
+    sendResponse({ success: true });
+  } catch (err) {
+    console.error('[BlurFemaleAI] Script injection failed:', err);
+    sendResponse({ success: false, error: err.message });
+  }
+}
 
 async function handleGetSettings(sendResponse) {
   try {

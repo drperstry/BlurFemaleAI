@@ -3,15 +3,15 @@
  * Orchestrates face detection and blurring on web pages.
  * Uses IntersectionObserver for lazy loading and MutationObserver for dynamic content.
  * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
+ *
+ * Loaded via manifest content_scripts along with model-engine.js and processor.js,
+ * so all three share the same content script isolated world.
  */
 
 (function () {
   'use strict';
 
-  // Cross-browser API reference (polyfill loaded via manifest)
-  const api = (typeof browserAPI !== 'undefined') ? browserAPI :
-    { runtime: (typeof browser !== 'undefined' ? browser : chrome).runtime,
-      raw: (typeof browser !== 'undefined' ? browser : chrome) };
+  const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
 
   let settings = null;
   let processor = null;
@@ -28,7 +28,12 @@
     const domain = window.location.hostname;
     if (settings.excludedDomains?.includes(domain)) return;
 
-    await loadModules();
+    // model-engine.js and processor.js are loaded via manifest content_scripts
+    // and are available in the same isolated world
+    if (!window.BlurFemaleAI?.ModelEngine || !window.BlurFemaleAI?.MediaProcessor) {
+      console.error('[BlurFemaleAI] Model engine or processor not loaded');
+      return;
+    }
 
     modelEngine = new window.BlurFemaleAI.ModelEngine();
     processor = new window.BlurFemaleAI.MediaProcessor(modelEngine);
@@ -48,37 +53,12 @@
     setupMessageListener();
   }
 
-  async function loadModules() {
-    const getURL = (path) => {
-      if (typeof browserAPI !== 'undefined') return browserAPI.runtime.getURL(path);
-      const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
-      return rt.getURL(path);
-    };
-    await injectScript(getURL('content/model-engine.js'));
-    await injectScript(getURL('content/processor.js'));
-  }
-
-  function injectScript(url) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${url}"]`)) {
-        resolve();
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = url;
-      script.onload = resolve;
-      script.onerror = reject;
-      (document.head || document.documentElement).appendChild(script);
-    });
-  }
-
   function getSettings() {
     return new Promise((resolve) => {
-      const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
       rt.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
-        // Handle Firefox promise-based API
-        if (response && typeof response.then === 'function') {
-          response.then(r => resolve(r?.settings || getDefaultSettings()));
+        if (rt.lastError) {
+          console.warn('[BlurFemaleAI] Could not get settings:', rt.lastError.message);
+          resolve(getDefaultSettings());
           return;
         }
         resolve(response?.settings || getDefaultSettings());
@@ -169,7 +149,6 @@
   }
 
   function setupMessageListener() {
-    const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
     rt.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.type) {
         case 'SETTINGS_UPDATED':

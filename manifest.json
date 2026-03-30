@@ -19,6 +19,8 @@
       "matches": ["<all_urls>"],
       "js": [
         "lib/browser-polyfill.js",
+        "content/model-engine.js",
+        "content/processor.js",
         "content/content.js"
       ],
       "css": [
@@ -44,9 +46,7 @@
     {
       "resources": [
         "lib/*",
-        "models/*",
-        "content/model-engine.js",
-        "content/processor.js"
+        "models/*"
       ],
       "matches": ["<all_urls>"]
     }

@@ -1,8 +1,12 @@
 /**
  * Model Engine
  * Abstraction layer for face detection engines: Face-API.js, TensorFlow.js, and Hybrid mode.
- * Handles model loading, inference, and gender classification.
+ * Handles lazy model loading via background script injection, inference, and gender classification.
  * Cross-browser compatible: Chrome, Brave, Safari (macOS/iOS), Firefox.
+ *
+ * This file runs in the content script ISOLATED world.
+ * Heavy libraries (face-api, tf, blazeface) are injected by the background service worker
+ * into the same isolated world via chrome.scripting.executeScript.
  */
 
 class ModelEngine {
@@ -52,7 +56,7 @@ class ModelEngine {
 
     this._loadingFaceApi = (async () => {
       try {
-        await this._injectScript(this._getExtURL('lib/face-api.min.js'));
+        await this._requestScriptInjection('lib/face-api.min.js');
         if (typeof faceapi === 'undefined') {
           throw new Error('face-api.js failed to load');
         }
@@ -65,6 +69,7 @@ class ModelEngine {
         console.log('[BlurFemaleAI] Face-API.js models loaded');
       } catch (err) {
         console.error('[BlurFemaleAI] Face-API.js load error:', err);
+        this._loadingFaceApi = null;
         throw err;
       }
     })();
@@ -78,7 +83,7 @@ class ModelEngine {
 
     this._loadingTf = (async () => {
       try {
-        await this._injectScript(this._getExtURL('lib/tf.min.js'));
+        await this._requestScriptInjection('lib/tf.min.js');
 
         // Safari/iOS: ensure WebGL backend is ready, fall back to CPU if needed
         if (typeof tf !== 'undefined') {
@@ -91,7 +96,7 @@ class ModelEngine {
           }
         }
 
-        await this._injectScript(this._getExtURL('lib/blazeface.min.js'));
+        await this._requestScriptInjection('lib/blazeface.min.js');
         if (typeof blazeface === 'undefined') {
           throw new Error('BlazeFace failed to load');
         }
@@ -100,6 +105,7 @@ class ModelEngine {
         console.log('[BlurFemaleAI] TensorFlow.js + BlazeFace loaded');
       } catch (err) {
         console.error('[BlurFemaleAI] TensorFlow.js load error:', err);
+        this._loadingTf = null;
         throw err;
       }
     })();
@@ -107,17 +113,24 @@ class ModelEngine {
     return this._loadingTf;
   }
 
-  _injectScript(src) {
+  /**
+   * Request the background service worker to inject a script file
+   * into this tab's content script world.
+   */
+  _requestScriptInjection(file) {
     return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) {
-        resolve();
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-      (document.head || document.documentElement).appendChild(script);
+      const rt = (typeof browser !== 'undefined' ? browser : chrome).runtime;
+      rt.sendMessage({ type: 'INJECT_SCRIPT', file }, (response) => {
+        if (rt.lastError) {
+          reject(new Error(rt.lastError.message));
+          return;
+        }
+        if (response?.success) {
+          resolve();
+        } else {
+          reject(new Error(response?.error || `Failed to inject ${file}`));
+        }
+      });
     });
   }
 
@@ -236,7 +249,6 @@ class ModelEngine {
     if (element instanceof HTMLVideoElement) {
       return this._elementToCanvas(element);
     }
-    // Safari may taint canvases from cross-origin images; fall back to canvas copy
     if (element instanceof HTMLImageElement && element.crossOrigin === null) {
       try {
         return this._elementToCanvas(element);
@@ -273,6 +285,6 @@ class ModelEngine {
   }
 }
 
-// Export as global for content scripts
+// Export in content script isolated world
 window.BlurFemaleAI = window.BlurFemaleAI || {};
 window.BlurFemaleAI.ModelEngine = ModelEngine;
